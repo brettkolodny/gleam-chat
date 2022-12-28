@@ -20,11 +20,7 @@ fn start() {
           Get, ["echo", "test"] ->
             websocket()
             |> Upgrade
-          _, _ ->
-            // assert Ok(front_end) = file.read_bits("../front-end/index.html")
-            // response.new(200)
-            // |> response.set_body(bit_builder.from_bit_string(front_end))
-            home()
+          _, _ -> home()
         }
       }),
     )
