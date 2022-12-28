@@ -1,12 +1,13 @@
-import mist/websocket.{BinaryMessage, Message, TextMessage}
+import mist/websocket.{BinaryMessage, Message, TextMessage, WebsocketHandler}
+import gleam/option.{None, Some}
 import gleam/dynamic
 import gleam/result
 import gleam/json
-import gleam/string
 import gleam/bit_string
-
-type PortMsg {
-  PortMsg(tag: String, value: String)
+import gleam/erlang/process.{Subject}
+import gleam/otp/actor
+import chat_server.{
+  ChatEvent, NewConnection, NewMessage, PortMsg, RemoveConnection,
 }
 
 fn decode_port_msg(port_msg: String) -> Result(PortMsg, Nil) {
@@ -27,18 +28,22 @@ fn message_to_string(message: Message) -> String {
   }
 }
 
-pub fn websocket() {
-  use message, subject <- websocket.with_handler()
+pub fn websocket(chat_sub: Subject(ChatEvent)) {
+  let on_close = fn(conn) { actor.send(chat_sub, RemoveConnection(conn)) }
 
-  use port_msg <- result.then(decode_port_msg(message_to_string(message)))
+  let handler = fn(message, conn) {
+    use port_msg <- result.then(decode_port_msg(message_to_string(message)))
 
-  case port_msg.tag {
-    "whisper" ->
-      websocket.send(subject, TextMessage(string.lowercase(port_msg.value)))
-    "yell" ->
-      websocket.send(subject, TextMessage(string.uppercase(port_msg.value)))
-    _ -> Nil
+    case port_msg.tag {
+      "connect" -> actor.send(chat_sub, NewConnection(conn, port_msg.value))
+
+      "message" -> actor.send(chat_sub, NewMessage(conn, port_msg.value))
+
+      _ -> Nil
+    }
+
+    Ok(Nil)
   }
 
-  Ok(Nil)
+  WebsocketHandler(on_close: Some(on_close), on_init: None, handler: handler)
 }

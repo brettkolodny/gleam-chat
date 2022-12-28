@@ -1,39 +1,34 @@
 import mist
-import gleam/erlang/process
+import gleam/erlang/process.{Subject}
 import gleam/http.{Get}
 import gleam/http/request
 import mist/handler.{Upgrade}
 import web_socket.{websocket}
 import home.{home}
+import chat_server.{ChatEvent}
+
+pub type ActorMsg {
+  NewMessage(content: String)
+}
 
 pub fn main() {
-  start()
+  assert Ok(chat_sub) = chat_server.start()
+
+  start(chat_sub)
   process.sleep_forever()
 }
 
-fn start() {
+fn start(chat_sub: Subject(ChatEvent)) {
   assert Ok(_) =
     mist.serve(
       port: 8080,
       handler: handler.with_func(fn(req) {
         case req.method, request.path_segments(req) {
           Get, ["echo", "test"] ->
-            websocket()
+            websocket(chat_sub)
             |> Upgrade
           _, _ -> home()
         }
       }),
     )
 }
-// fn handle_request(req: Request(BitString)) {
-//   use req <- handler.with_func()
-
-//   case req.method, request.path_segments(req) {
-//     Get, ["echo", "test"] -> websocket()
-//     _, _ ->
-//       // assert Ok(front_end) = file.read_bits("../front-end/index.html")
-//       // response.new(200)
-//       // |> response.set_body(bit_builder.from_bit_string(front_end))
-//       home()
-//   }
-// }

@@ -16,7 +16,7 @@ gleam_erlang = "~> 0.17"
 gleam_http = "~> 3.1"
 glisten = "~> 0.6"
 gleam_json = "~> 0.5"
-nakai = "~> 0.4"
+gleam_otp = "~> 0.5"
 
 [dev-dependencies]
 gleeunit = "~> 0.7"
