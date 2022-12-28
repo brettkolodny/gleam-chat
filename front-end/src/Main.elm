@@ -31,25 +31,42 @@ type alias PortMsg =
     }
 
 
+type alias IncomingMsg =
+    { tag : String, value : List String }
+
+
 port sendMessage : PortMsg -> Cmd msg
 
 
-port messageReceiver : (String -> msg) -> Sub msg
+port messageReceiver : (D.Value -> msg) -> Sub msg
 
 
 
 -- MODEL
+-- type ChatItem =
+
+
+type alias Message =
+    { author : String, content : String }
+
+
+type ChatItem
+    = UserMessage Message
+    | UserDisconnect String
+    | UserConnect String
 
 
 type alias Model =
     { draft : String
-    , messages : List String
+    , usernameDraft : String
+    , username : Maybe String
+    , chatItems : List ChatItem
     }
 
 
 init : () -> ( Model, Cmd Msg )
-init flags =
-    ( { draft = "", messages = [] }
+init _ =
+    ( { draft = "", chatItems = [], username = Nothing, usernameDraft = "" }
     , Cmd.none
     )
 
@@ -60,9 +77,11 @@ init flags =
 
 type Msg
     = DraftChanged String
-    | Whisper
-    | Yell
-    | Recv String
+    | UsernameDraftChanged String
+    | Send
+    | Recv IncomingMsg
+    | Connect String
+    | NoOp
 
 
 
@@ -80,20 +99,73 @@ update msg model =
             , Cmd.none
             )
 
-        Whisper ->
-            ( { model | draft = "" }
-            , sendMessage { tag = "whisper", value = model.draft }
-            )
-
-        Yell ->
-            ( { model | draft = "" }
-            , sendMessage { tag = "yell", value = model.draft }
-            )
-
-        Recv message ->
-            ( { model | messages = model.messages ++ [ message ] }
+        UsernameDraftChanged draft ->
+            ( { model | usernameDraft = draft }
             , Cmd.none
             )
+
+        Send ->
+            ( { model | draft = "" }
+            , sendMessage { tag = "message", value = model.draft }
+            )
+
+        Connect username ->
+            ( { model | username = Just username }, sendMessage { tag = "connect", value = username } )
+
+        Recv message ->
+            case message.tag of
+                "new-message" ->
+                    let
+                        ( author, content ) =
+                            case message.value of
+                                [ a, c ] ->
+                                    ( a, c )
+
+                                _ ->
+                                    ( "", "" )
+
+                        item =
+                            UserMessage { author = author, content = content }
+                    in
+                    ( { model | chatItems = model.chatItems ++ [ item ] }
+                    , Cmd.none
+                    )
+
+                "user-disconnect" ->
+                    let
+                        user =
+                            case message.value of
+                                [ u ] ->
+                                    u
+
+                                _ ->
+                                    ""
+
+                        item =
+                            UserDisconnect user
+                    in
+                    ( { model | chatItems = model.chatItems ++ [ item ] }, Cmd.none )
+
+                "user-connect" ->
+                    let
+                        user =
+                            case message.value of
+                                [ u ] ->
+                                    u
+
+                                _ ->
+                                    ""
+
+                        item =
+                            UserConnect user
+                    in
+                    ( { model | chatItems = model.chatItems ++ [ item ] }, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        NoOp ->
+            ( model, Cmd.none )
 
 
 
@@ -106,7 +178,28 @@ update msg model =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    messageReceiver Recv
+    messageReceiver mapDecode
+
+
+decode : D.Decoder IncomingMsg
+decode =
+    D.map2 IncomingMsg
+        (D.field "tag" D.string)
+        (D.field "value" (D.list D.string))
+
+
+mapDecode : D.Value -> Msg
+mapDecode portmsgJson =
+    case D.decodeValue decode portmsgJson of
+        Ok msg ->
+            Recv msg
+
+        Err errorMessage ->
+            let
+                _ =
+                    Debug.log "Error in mapWorkerUpdated:" errorMessage
+            in
+            NoOp
 
 
 
@@ -115,21 +208,63 @@ subscriptions _ =
 
 view : Model -> Html Msg
 view model =
+    let
+        inputElement =
+            case model.username of
+                Just _ ->
+                    messageInput
+
+                _ ->
+                    connectInput
+    in
     div []
-        [ h1 [] [ text "Echo Chat" ]
+        [ h1 [] [ text "Gleam Chat" ]
         , ul []
-            (List.map (\msg -> li [] [ text msg ]) model.messages)
-        , input
+            (List.map (\msg -> chatItemElement msg) model.chatItems)
+        , inputElement model
+        ]
+
+
+messageInput : Model -> Html Msg
+messageInput model =
+    div []
+        [ input
             [ type_ "text"
             , placeholder "Draft"
             , onInput DraftChanged
-            , on "keydown" (ifIsEnter Yell)
+            , on "keydown" (ifIsEnter Send)
             , value model.draft
             ]
             []
-        , button [ onClick Yell ] [ text "Yell" ]
-        , button [ onClick Whisper ] [ text "Whisper" ]
+        , button [ onClick Send ] [ text "Yell" ]
         ]
+
+
+connectInput : Model -> Html Msg
+connectInput model =
+    div []
+        [ input
+            [ type_ "text"
+            , placeholder "Username"
+            , onInput UsernameDraftChanged
+            , on "keydown" (ifIsEnter (Connect model.usernameDraft))
+            ]
+            []
+        , button [ onClick (Connect model.usernameDraft) ] [ text "Connect" ]
+        ]
+
+
+chatItemElement : ChatItem -> Html Msg
+chatItemElement chatItem =
+    case chatItem of
+        UserMessage msg ->
+            div [] [ text (msg.author ++ ": " ++ msg.content) ]
+
+        UserDisconnect user ->
+            div [] [ em [] [ text (user ++ " disconnected.") ] ]
+
+        UserConnect user ->
+            div [] [ em [] [ text (user ++ " connected.") ] ]
 
 
 

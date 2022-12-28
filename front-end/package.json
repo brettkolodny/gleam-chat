@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
-    "scripts": {
-      "build": "node ./build.js"
-    },
+  "scripts": {
+    "build": "node ./build.js"
+  },
   "devDependencies": {
     "esbuild": "^0.16.12",
     "esbuild-plugin-elm": "^0.0.12"

@@ -31,7 +31,29 @@ fn send_msg(conn: Subject(HandlerMessage), author: String, msg: String) -> Nil {
   let payload =
     json.object([
       #("tag", json.string("new-message")),
-      #("value", json.string(author <> ": " <> msg)),
+      #("value", json.array([author, msg], json.string)),
+    ])
+    |> json.to_string()
+
+  websocket.send(conn, TextMessage(payload))
+}
+
+fn send_disconnect(conn: Subject(HandlerMessage), user: String) -> Nil {
+  let payload =
+    json.object([
+      #("tag", json.string("user-disconnect")),
+      #("value", json.array([user], json.string)),
+    ])
+    |> json.to_string()
+
+  websocket.send(conn, TextMessage(payload))
+}
+
+fn send_connect(conn: Subject(HandlerMessage), user: String) -> Nil {
+  let payload =
+    json.object([
+      #("tag", json.string("user-connect")),
+      #("value", json.array([user], json.string)),
     ])
     |> json.to_string()
 
@@ -53,13 +75,20 @@ pub fn start() -> Result(Subject(ChatEvent), StartError) {
         _ -> state
       }
 
-    NewConnection(conn, name) ->
-      ChatState(connections: [#(conn, name), ..conns], messages: msgs)
-
-    RemoveConnection(conn) -> {
-      let new_conns = list.filter(conns, fn(c) { c.0 != conn })
+    NewConnection(conn, name) -> {
+      let new_conns = [#(conn, name), ..conns]
+      list.map(new_conns, fn(conn) { send_connect(conn.0, name) })
       ChatState(connections: new_conns, messages: msgs)
     }
+    RemoveConnection(conn) ->
+      case list.find(conns, fn(c) { c.0 == conn }) {
+        Ok(#(_, author)) -> {
+          let new_conns = list.filter(conns, fn(c) { c.0 != conn })
+          list.map(new_conns, fn(conn) { send_disconnect(conn.0, author) })
+          ChatState(connections: new_conns, messages: msgs)
+        }
+        _ -> state
+      }
   }
 
   io.debug(new_state)

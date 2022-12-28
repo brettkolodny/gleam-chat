@@ -10,7 +10,8 @@ const app = Elm.Main.init({
 const ws = new WebSocket("ws://localhost:8080/echo/test");
 
 ws.addEventListener("message", (event) => {
-  app.ports.messageReceiver.send(event.data);
+  console.log(event.data);
+  app.ports.messageReceiver.send(JSON.parse(event.data));
 });
 
 app.ports.sendMessage.subscribe((message) => {
