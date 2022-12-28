@@ -1,3 +1,5 @@
+// IMPORTS --------------------------------------------------------------------
+
 import mist/websocket.{BinaryMessage, Message, TextMessage, WebsocketHandler}
 import gleam/option.{None, Some}
 import gleam/dynamic
@@ -9,6 +11,8 @@ import gleam/otp/actor
 import chat_server.{
   ChatEvent, NewConnection, NewMessage, PortMsg, RemoveConnection,
 }
+
+// UTILITY --------------------------------------------------------------------
 
 fn decode_port_msg(port_msg: String) -> Result(PortMsg, Nil) {
   let decode_port_msg =
@@ -27,6 +31,8 @@ fn message_to_string(message: Message) -> String {
     BinaryMessage(msg) -> result.unwrap(bit_string.to_string(msg), "")
   }
 }
+
+// HANDLER --------------------------------------------------------------------
 
 pub fn websocket(chat_sub: Subject(ChatEvent)) {
   let on_close = fn(conn) { actor.send(chat_sub, RemoveConnection(conn)) }

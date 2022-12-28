@@ -1,10 +1,12 @@
 port module Main exposing (..)
 
 import Browser
+import Browser.Dom as Dom
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Json.Decode as D
+import Task
 
 
 
@@ -43,7 +45,6 @@ port messageReceiver : (D.Value -> msg) -> Sub msg
 
 
 -- MODEL
--- type ChatItem =
 
 
 type alias Message =
@@ -84,13 +85,6 @@ type Msg
     | NoOp
 
 
-
--- Use the `sendMessage` port when someone presses ENTER or clicks
--- the "Send" button. Check out index.html to see the corresponding
--- JS where this is piped into a WebS'ocket.
---
-
-
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -128,7 +122,7 @@ update msg model =
                             UserMessage { author = author, content = content }
                     in
                     ( { model | chatItems = model.chatItems ++ [ item ] }
-                    , Cmd.none
+                    , jumpToBottom "chat"
                     )
 
                 "user-disconnect" ->
@@ -170,10 +164,6 @@ update msg model =
 
 
 -- SUBSCRIPTIONS
--- Subscribe to the `messageReceiver` port to hear about messages coming in
--- from JS. Check out the index.html file to see how this is hooked up to a
--- WebSocket.
---
 
 
 subscriptions : Model -> Sub Msg
@@ -217,40 +207,52 @@ view model =
                 _ ->
                     connectInput
     in
-    div []
-        [ h1 [] [ text "Gleam Chat" ]
-        , ul []
-            (List.map (\msg -> chatItemElement msg) model.chatItems)
-        , inputElement model
+    div [ class "flex flex-col justify-center items-center w-full h-screen bg-gray-100" ]
+        [ div [ class "flex flex-col justify-center gap-4" ]
+            [ h1 [ class "text-4xl font-bold" ] [ text "Gleam Chat" ]
+            , div [ id "chat", class "p-4 w-[724px] border border-pink-200 h-[512px] rounded-md bg-white overflow-y-scroll" ]
+                (List.map (\msg -> chatItemElement msg) model.chatItems)
+            , inputElement model
+            ]
         ]
 
 
 messageInput : Model -> Html Msg
 messageInput model =
-    div []
+    div [ class "flex flex-row gap-4" ]
         [ input
             [ type_ "text"
             , placeholder "Draft"
             , onInput DraftChanged
             , on "keydown" (ifIsEnter Send)
             , value model.draft
+            , class "w-full h-12 border border-pink-200 px-4 rounded-md"
             ]
             []
-        , button [ onClick Send ] [ text "Yell" ]
+        , button
+            [ class "w-36 bg-[#ffaff3] text-lg text-[#2f2f2f] font-semibold rounded-md"
+            , onClick Send
+            ]
+            [ text "Send" ]
         ]
 
 
 connectInput : Model -> Html Msg
 connectInput model =
-    div []
+    div [ class "flex flex-row gap-4" ]
         [ input
             [ type_ "text"
             , placeholder "Username"
             , onInput UsernameDraftChanged
             , on "keydown" (ifIsEnter (Connect model.usernameDraft))
+            , class "w-full h-12 border border-pink-200 px-4 rounded-md"
             ]
             []
-        , button [ onClick (Connect model.usernameDraft) ] [ text "Connect" ]
+        , button
+            [ class "w-36 bg-[#ffaff3] text-lg text-[#2f2f2f] font-semibold rounded-md"
+            , onClick (Connect model.usernameDraft)
+            ]
+            [ text "Connect" ]
         ]
 
 
@@ -268,7 +270,7 @@ chatItemElement chatItem =
 
 
 
--- DETECT ENTER
+-- UTILITY
 
 
 ifIsEnter : msg -> D.Decoder msg
@@ -282,3 +284,10 @@ ifIsEnter msg =
                 else
                     D.fail "some other key"
             )
+
+
+jumpToBottom : String -> Cmd Msg
+jumpToBottom id =
+    Dom.getViewportOf id
+        |> Task.andThen (\info -> Dom.setViewportOf id 0 info.scene.height)
+        |> Task.attempt (\_ -> NoOp)

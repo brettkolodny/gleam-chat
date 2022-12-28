@@ -3,7 +3,7 @@ import gleam/erlang/process.{Subject}
 import gleam/http.{Get}
 import gleam/http/request
 import mist/handler.{Upgrade}
-import web_socket.{websocket}
+import websocket.{websocket}
 import home.{home}
 import chat_server.{ChatEvent}
 
@@ -24,7 +24,7 @@ fn start(chat_sub: Subject(ChatEvent)) {
       port: 8080,
       handler: handler.with_func(fn(req) {
         case req.method, request.path_segments(req) {
-          Get, ["echo", "test"] ->
+          Get, ["ws"] ->
             websocket(chat_sub)
             |> Upgrade
           _, _ -> home()

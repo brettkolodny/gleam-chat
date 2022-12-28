@@ -1,4 +1,8 @@
+// IMPORTS --------------------------------------------------------------------
+
 import { Elm } from "./Main.elm";
+
+// ELM ------------------------------------------------------------------------
 
 const $root = document.createElement("div");
 document.body.appendChild($root);
@@ -7,10 +11,14 @@ const app = Elm.Main.init({
   node: $root,
 });
 
-const ws = new WebSocket("ws://localhost:8080/echo/test");
+// WEB SOCKET -----------------------------------------------------------------
+
+const url = new URL(window.location.href);
+const ws = new WebSocket(
+  `${url.protocol === "https:" ? "wss" : "ws"}://${url.host}/ws`
+);
 
 ws.addEventListener("message", (event) => {
-  console.log(event.data);
   app.ports.messageReceiver.send(JSON.parse(event.data));
 });
 

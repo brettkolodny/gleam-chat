@@ -1,12 +1,17 @@
+// IMPORTS --------------------------------------------------------------------
+
 import mist/http.{BitBuilderBody}
 import gleam/http/response
 import gleam/bit_builder
 import mist/handler.{Response}
 import gleam/erlang/file
-import html/element.{Html, h1, node, render, script, text}
+import html/element.{Html, node, render, script, text}
+
+// HTML -----------------------------------------------------------------------
 
 pub fn render_page(html: Html) -> String {
   let doc_type = "<!DOCTYPE html>"
+  assert Ok(css) = file.read("../front-end/dist/index.css")
 
   let html =
     node(
@@ -23,20 +28,18 @@ pub fn render_page(html: Html) -> String {
 <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>
 <link href=\"https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600;700;800;900&display=swap\" rel=\"stylesheet\">",
             ),
-            node(
-              "style",
-              [],
-              [text("html { font-family: 'Outfit', sans-serif; }")],
-            ),
+            node("style", [], [text(css)]),
           ],
         ),
-        node("body", [], [h1([], [text("Welcome to the PEG Stack!")]), html]),
+        node("body", [], [html]),
       ],
     )
     |> render
 
   doc_type <> html
 }
+
+// HANDLER --------------------------------------------------------------------
 
 pub fn home() {
   assert Ok(front_end) = file.read("../front-end/dist/bundle.js")

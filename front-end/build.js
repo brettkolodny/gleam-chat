@@ -10,6 +10,12 @@ esbuild
     entryPoints: ["src/index.js"],
     bundle: true,
     outfile: "dist/bundle.js",
+    watch: {
+      onRebuild(error, result) {
+        if (error) console.error("watch build failed:", error);
+        else console.log("watch build succeeded:", result);
+      },
+    },
     plugins: [
       ElmPlugin({
         debug: true,

@@ -1,3 +1,5 @@
+// IMPORTS --------------------------------------------------------------------
+
 import gleam/otp/actor.{Continue, StartError}
 import gleam/erlang/process.{Subject}
 import gleam/list
@@ -6,10 +8,13 @@ import mist/websocket.{TextMessage}
 import gleam/io
 import gleam/json
 
+// TYPES ----------------------------------------------------------------------
+
 pub type ChatEvent {
   NewMessage(author: Subject(HandlerMessage), content: String)
   NewConnection(subject: Subject(HandlerMessage), name: String)
   RemoveConnection(subject: Subject(HandlerMessage))
+  GetMessages(subject: Subject(HandlerMessage))
 }
 
 pub type PortMsg {
@@ -19,9 +24,11 @@ pub type PortMsg {
 type ChatState {
   ChatState(
     connections: List(#(Subject(HandlerMessage), String)),
-    messages: List(String),
+    messages: List(#(String, String)),
   )
 }
+
+// MESSAGES -------------------------------------------------------------------
 
 fn new_chat_state() -> ChatState {
   ChatState(connections: [], messages: [])
@@ -60,6 +67,8 @@ fn send_connect(conn: Subject(HandlerMessage), user: String) -> Nil {
   websocket.send(conn, TextMessage(payload))
 }
 
+// SERVER ---------------------------------------------------------------------
+
 pub fn start() -> Result(Subject(ChatEvent), StartError) {
   use event, state <- actor.start(new_chat_state())
 
@@ -70,7 +79,8 @@ pub fn start() -> Result(Subject(ChatEvent), StartError) {
       case list.find(conns, fn(c) { c.0 == conn }) {
         Ok(#(_, author)) -> {
           list.map(conns, fn(conn) { send_msg(conn.0, author, msg) })
-          ChatState(connections: conns, messages: [msg, ..msgs])
+          let new_messages = list.take([#(author, msg), ..msgs], 100)
+          ChatState(connections: conns, messages: new_messages)
         }
         _ -> state
       }
@@ -80,6 +90,7 @@ pub fn start() -> Result(Subject(ChatEvent), StartError) {
       list.map(new_conns, fn(conn) { send_connect(conn.0, name) })
       ChatState(connections: new_conns, messages: msgs)
     }
+
     RemoveConnection(conn) ->
       case list.find(conns, fn(c) { c.0 == conn }) {
         Ok(#(_, author)) -> {
@@ -89,9 +100,9 @@ pub fn start() -> Result(Subject(ChatEvent), StartError) {
         }
         _ -> state
       }
-  }
 
-  io.debug(new_state)
+    GetMessages(conn) -> state
+  }
 
   Continue(new_state)
 }
