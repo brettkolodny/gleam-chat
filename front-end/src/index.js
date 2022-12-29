@@ -19,9 +19,23 @@ const ws = new WebSocket(
 );
 
 ws.addEventListener("message", (event) => {
-  app.ports.messageReceiver.send(JSON.parse(event.data));
+  const data = JSON.parse(event.data);
+
+  if (data.tag === "new-message") {
+    app.ports.messageReceiver.send(data);
+  } else if (data.tag === "user-connect") {
+    app.ports.connectionReceiver.send(data);
+  } else if (data.tag === "user-disconnect") {
+    app.ports.disconnectionReceiver.send(data);
+  } else {
+    console.error(`Unexpected websocket message: ${data}`);
+  }
 });
 
 app.ports.sendMessage.subscribe((message) => {
+  ws.send(JSON.stringify(message));
+});
+
+app.ports.connectUser.subscribe((message) => {
   ws.send(JSON.stringify(message));
 });

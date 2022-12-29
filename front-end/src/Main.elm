@@ -33,14 +33,37 @@ type alias PortMsg =
     }
 
 
+type alias UserDetails =
+    { name : String
+    , colour : String
+    }
+
+
 type alias IncomingMsg =
-    { tag : String, value : List String }
+    { author : String, content : String }
+
+
+type alias IncomingConnection =
+    { name : String }
+
+
+type alias IncomingDisconnection =
+    { name : String }
 
 
 port sendMessage : PortMsg -> Cmd msg
 
 
+port connectUser : UserDetails -> Cmd msg
+
+
 port messageReceiver : (D.Value -> msg) -> Sub msg
+
+
+port connectionReceiver : (D.Value -> msg) -> Sub msg
+
+
+port disconnectionReceiver : (D.Value -> msg) -> Sub msg
 
 
 
@@ -57,17 +80,32 @@ type ChatItem
     | UserConnect String
 
 
+type UserColour
+    = Pink
+    | Blue
+    | Aubergine
+    | Charcoal
+
+
 type alias Model =
     { draft : String
     , usernameDraft : String
     , username : Maybe String
     , chatItems : List ChatItem
+    , showColourSelector : Bool
+    , userColour : UserColour
     }
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { draft = "", chatItems = [], username = Nothing, usernameDraft = "" }
+    ( { draft = ""
+      , chatItems = []
+      , username = Nothing
+      , usernameDraft = ""
+      , showColourSelector = False
+      , userColour = Charcoal
+      }
     , Cmd.none
     )
 
@@ -80,8 +118,12 @@ type Msg
     = DraftChanged String
     | UsernameDraftChanged String
     | Send
-    | Recv IncomingMsg
-    | Connect String
+    | NewMessage IncomingMsg
+    | NewConnection IncomingConnection
+    | NewDisconnection IncomingDisconnection
+    | Connect
+    | ToggleShowColourSelector
+    | SetUserColour UserColour
     | NoOp
 
 
@@ -98,65 +140,57 @@ update msg model =
             , Cmd.none
             )
 
+        SetUserColour colour ->
+            ( { model | userColour = colour }, Cmd.none )
+
         Send ->
             ( { model | draft = "" }
             , sendMessage { tag = "message", value = model.draft }
             )
 
-        Connect username ->
-            ( { model | username = Just username }, sendMessage { tag = "connect", value = username } )
+        Connect ->
+            let
+                colourString =
+                    case model.userColour of
+                        Pink ->
+                            "pink"
 
-        Recv message ->
-            case message.tag of
-                "new-message" ->
-                    let
-                        ( author, content ) =
-                            case message.value of
-                                [ a, c ] ->
-                                    ( a, c )
+                        Charcoal ->
+                            "charcoal"
 
-                                _ ->
-                                    ( "", "" )
+                        Blue ->
+                            "blue"
 
-                        item =
-                            UserMessage { author = author, content = content }
-                    in
-                    ( { model | chatItems = model.chatItems ++ [ item ] }
-                    , jumpToBottom "chat"
-                    )
+                        Aubergine ->
+                            "aubergine"
+            in
+            ( { model | username = Just model.usernameDraft }
+            , connectUser { colour = colourString, name = model.usernameDraft }
+            )
 
-                "user-disconnect" ->
-                    let
-                        user =
-                            case message.value of
-                                [ u ] ->
-                                    u
+        ToggleShowColourSelector ->
+            ( { model | showColourSelector = not model.showColourSelector }, Cmd.none )
 
-                                _ ->
-                                    ""
+        NewMessage message ->
+            let
+                item =
+                    UserMessage { author = message.author, content = message.content }
+            in
+            ( { model | chatItems = model.chatItems ++ [ item ] }, Cmd.none )
 
-                        item =
-                            UserDisconnect user
-                    in
-                    ( { model | chatItems = model.chatItems ++ [ item ] }, Cmd.none )
+        NewConnection connection ->
+            let
+                item =
+                    UserConnect connection.name
+            in
+            ( { model | chatItems = model.chatItems ++ [ item ] }, Cmd.none )
 
-                "user-connect" ->
-                    let
-                        user =
-                            case message.value of
-                                [ u ] ->
-                                    u
-
-                                _ ->
-                                    ""
-
-                        item =
-                            UserConnect user
-                    in
-                    ( { model | chatItems = model.chatItems ++ [ item ] }, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
+        NewDisconnection disconnection ->
+            let
+                item =
+                    UserDisconnect disconnection.name
+            in
+            ( { model | chatItems = model.chatItems ++ [ item ] }, Cmd.none )
 
         NoOp ->
             ( model, Cmd.none )
@@ -168,21 +202,63 @@ update msg model =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    messageReceiver mapDecode
+    Sub.batch
+        [ messageReceiver mapDecodeMessage
+        , connectionReceiver mapDecodeConnection
+        , disconnectionReceiver mapDecodeDisconnection
+        ]
 
 
-decode : D.Decoder IncomingMsg
-decode =
+decodeMessage : D.Decoder IncomingMsg
+decodeMessage =
     D.map2 IncomingMsg
-        (D.field "tag" D.string)
-        (D.field "value" (D.list D.string))
+        (D.field "author" D.string)
+        (D.field "content" D.string)
 
 
-mapDecode : D.Value -> Msg
-mapDecode portmsgJson =
-    case D.decodeValue decode portmsgJson of
+mapDecodeMessage : D.Value -> Msg
+mapDecodeMessage portmsgJson =
+    case D.decodeValue decodeMessage portmsgJson of
         Ok msg ->
-            Recv msg
+            NewMessage msg
+
+        Err errorMessage ->
+            let
+                _ =
+                    Debug.log "Error in mapWorkerUpdated:" errorMessage
+            in
+            NoOp
+
+
+decodeConnection : D.Decoder IncomingConnection
+decodeConnection =
+    D.map IncomingConnection (D.field "name" D.string)
+
+
+mapDecodeConnection : D.Value -> Msg
+mapDecodeConnection incomingConnection =
+    case D.decodeValue decodeConnection incomingConnection of
+        Ok conn ->
+            NewConnection conn
+
+        Err errorMessage ->
+            let
+                _ =
+                    Debug.log "Error in mapWorkerUpdated:" errorMessage
+            in
+            NoOp
+
+
+decodeDisconnection : D.Decoder IncomingDisconnection
+decodeDisconnection =
+    D.map IncomingDisconnection (D.field "name" D.string)
+
+
+mapDecodeDisconnection : D.Value -> Msg
+mapDecodeDisconnection incomingDisconnection =
+    case D.decodeValue decodeDisconnection incomingDisconnection of
+        Ok conn ->
+            NewDisconnection conn
 
         Err errorMessage ->
             let
@@ -239,20 +315,23 @@ messageInput model =
 
 connectInput : Model -> Html Msg
 connectInput model =
-    div [ class "flex flex-row gap-4" ]
+    div [ class "flex flex-row space-between gap-4" ]
         [ input
             [ type_ "text"
             , placeholder "Username"
             , onInput UsernameDraftChanged
-            , on "keydown" (ifIsEnter (Connect model.usernameDraft))
+            , on "keydown" (ifIsEnter Connect)
             , class "w-full h-12 border border-pink-200 px-4 rounded-md"
             ]
             []
-        , button
-            [ class "w-36 bg-[#ffaff3] text-lg text-[#2f2f2f] font-semibold rounded-md"
-            , onClick (Connect model.usernameDraft)
+        , div [ class "flex flex-row gap-4" ]
+            [ colourPicker model
+            , button
+                [ class "w-36 bg-[#ffaff3] text-lg text-[#2f2f2f] font-semibold rounded-md"
+                , onClick Connect
+                ]
+                [ text "Connect" ]
             ]
-            [ text "Connect" ]
         ]
 
 
@@ -267,6 +346,37 @@ chatItemElement chatItem =
 
         UserConnect user ->
             div [] [ em [] [ text (user ++ " connected.") ] ]
+
+
+colourPicker : Model -> Html Msg
+colourPicker model =
+    let
+        backgroundColour =
+            case model.userColour of
+                Pink ->
+                    "bg-[#ffaff3]"
+
+                Charcoal ->
+                    "bg-[#2f2f2f]"
+
+                Blue ->
+                    "bg-[#a6f0fc]"
+
+                Aubergine ->
+                    "bg-[#584355]"
+    in
+    div [ class ("w-12 h-12 rounded-md " ++ backgroundColour ++ " cursor-pointer"), onClick ToggleShowColourSelector ]
+        [ if model.showColourSelector then
+            div [ class "absolute flex flex-row justify-evenly items-center gap-2 p-2 bg-white rounded-md transform translate-y-16" ]
+                [ div [ class "w-8 h-8 bg-[#ffaff3] rounded-md", onClick (SetUserColour Pink) ] []
+                , div [ class "w-8 h-8 bg-[#a6f0fc] rounded-md", onClick (SetUserColour Blue) ] []
+                , div [ class "w-8 h-8 bg-[#2f2f2f] rounded-md", onClick (SetUserColour Charcoal) ] []
+                , div [ class "w-8 h-8 bg-[#584355] rounded-md", onClick (SetUserColour Aubergine) ] []
+                ]
+
+          else
+            div [] []
+        ]
 
 
 
