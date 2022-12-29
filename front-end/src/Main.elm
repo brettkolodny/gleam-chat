@@ -40,7 +40,7 @@ type alias UserDetails =
 
 
 type alias IncomingMsg =
-    { author : String, content : String }
+    { author : String, content : String, colour : String }
 
 
 type alias IncomingConnection =
@@ -71,7 +71,7 @@ port disconnectionReceiver : (D.Value -> msg) -> Sub msg
 
 
 type alias Message =
-    { author : String, content : String }
+    { author : String, content : String, colour : UserColour }
 
 
 type ChatItem
@@ -173,8 +173,25 @@ update msg model =
 
         NewMessage message ->
             let
+                userColour =
+                    case message.colour of
+                        "charcoal" ->
+                            Charcoal
+
+                        "pink" ->
+                            Pink
+
+                        "blue" ->
+                            Blue
+
+                        "aubergine" ->
+                            Aubergine
+
+                        _ ->
+                            Charcoal
+
                 item =
-                    UserMessage { author = message.author, content = message.content }
+                    UserMessage { author = message.author, content = message.content, colour = userColour }
             in
             ( { model | chatItems = model.chatItems ++ [ item ] }, Cmd.none )
 
@@ -211,9 +228,10 @@ subscriptions _ =
 
 decodeMessage : D.Decoder IncomingMsg
 decodeMessage =
-    D.map2 IncomingMsg
+    D.map3 IncomingMsg
         (D.field "author" D.string)
         (D.field "content" D.string)
+        (D.field "colour" D.string)
 
 
 mapDecodeMessage : D.Value -> Msg
@@ -339,7 +357,22 @@ chatItemElement : ChatItem -> Html Msg
 chatItemElement chatItem =
     case chatItem of
         UserMessage msg ->
-            div [] [ text (msg.author ++ ": " ++ msg.content) ]
+            let
+                colourClass =
+                    case msg.colour of
+                        Pink ->
+                            "text-[#d47dc7]"
+
+                        Charcoal ->
+                            "text-[#2f2f2f]"
+
+                        Blue ->
+                            "text-[#06aeca]"
+
+                        Aubergine ->
+                            "text-[#584355]"
+            in
+            div [ class colourClass ] [ text (msg.author ++ ": " ++ msg.content) ]
 
         UserDisconnect user ->
             div [] [ em [] [ text (user ++ " disconnected.") ] ]
@@ -354,13 +387,13 @@ colourPicker model =
         backgroundColour =
             case model.userColour of
                 Pink ->
-                    "bg-[#ffaff3]"
+                    "bg-[#d47dc7]"
 
                 Charcoal ->
                     "bg-[#2f2f2f]"
 
                 Blue ->
-                    "bg-[#a6f0fc]"
+                    "bg-[#06aeca]"
 
                 Aubergine ->
                     "bg-[#584355]"
@@ -368,8 +401,8 @@ colourPicker model =
     div [ class ("w-12 h-12 rounded-md " ++ backgroundColour ++ " cursor-pointer"), onClick ToggleShowColourSelector ]
         [ if model.showColourSelector then
             div [ class "absolute flex flex-row justify-evenly items-center gap-2 p-2 bg-white rounded-md transform translate-y-16" ]
-                [ div [ class "w-8 h-8 bg-[#ffaff3] rounded-md", onClick (SetUserColour Pink) ] []
-                , div [ class "w-8 h-8 bg-[#a6f0fc] rounded-md", onClick (SetUserColour Blue) ] []
+                [ div [ class "w-8 h-8 bg-[#d47dc7] rounded-md", onClick (SetUserColour Pink) ] []
+                , div [ class "w-8 h-8 bg-[#06aeca] rounded-md", onClick (SetUserColour Blue) ] []
                 , div [ class "w-8 h-8 bg-[#2f2f2f] rounded-md", onClick (SetUserColour Charcoal) ] []
                 , div [ class "w-8 h-8 bg-[#584355] rounded-md", onClick (SetUserColour Aubergine) ] []
                 ]

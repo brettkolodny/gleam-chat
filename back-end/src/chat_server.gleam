@@ -5,27 +5,28 @@ import gleam/erlang/process.{Subject}
 import gleam/list
 import glisten/handler.{HandlerMessage}
 import mist/websocket.{TextMessage}
-import gleam/io
 import gleam/json
 
 // TYPES ----------------------------------------------------------------------
 
 pub type ChatEvent {
   NewMessage(author: Subject(HandlerMessage), content: String)
-  NewConnection(subject: Subject(HandlerMessage), name: String)
+  NewConnection(subject: Subject(HandlerMessage), name: String, colour: String)
   RemoveConnection(subject: Subject(HandlerMessage))
   GetMessages(subject: Subject(HandlerMessage))
 }
 
 pub type PortMsg {
   PortMsg(tag: String, value: String)
+  Connect(name: String, colour: String)
+}
+
+type User {
+  User(conn: Subject(HandlerMessage), name: String, colour: String)
 }
 
 type ChatState {
-  ChatState(
-    connections: List(#(Subject(HandlerMessage), String)),
-    messages: List(#(String, String)),
-  )
+  ChatState(connections: List(User), messages: List(#(String, String)))
 }
 
 // MESSAGES -------------------------------------------------------------------
@@ -34,11 +35,17 @@ fn new_chat_state() -> ChatState {
   ChatState(connections: [], messages: [])
 }
 
-fn send_msg(conn: Subject(HandlerMessage), author: String, msg: String) -> Nil {
+fn send_msg(
+  to conn: Subject(HandlerMessage),
+  user user: User,
+  msg msg: String,
+) -> Nil {
   let payload =
     json.object([
       #("tag", json.string("new-message")),
-      #("value", json.array([author, msg], json.string)),
+      #("content", json.string(msg)),
+      #("author", json.string(user.name)),
+      #("colour", json.string(user.colour)),
     ])
     |> json.to_string()
 
@@ -49,7 +56,7 @@ fn send_disconnect(conn: Subject(HandlerMessage), user: String) -> Nil {
   let payload =
     json.object([
       #("tag", json.string("user-disconnect")),
-      #("value", json.array([user], json.string)),
+      #("name", json.string(user)),
     ])
     |> json.to_string()
 
@@ -60,7 +67,7 @@ fn send_connect(conn: Subject(HandlerMessage), user: String) -> Nil {
   let payload =
     json.object([
       #("tag", json.string("user-connect")),
-      #("value", json.array([user], json.string)),
+      #("name", json.string(user)),
     ])
     |> json.to_string()
 
@@ -76,32 +83,36 @@ pub fn start() -> Result(Subject(ChatEvent), StartError) {
 
   let new_state = case event {
     NewMessage(conn, msg) ->
-      case list.find(conns, fn(c) { c.0 == conn }) {
-        Ok(#(_, author)) -> {
-          list.map(conns, fn(conn) { send_msg(conn.0, author, msg) })
-          let new_messages = list.take([#(author, msg), ..msgs], 100)
+      case list.find(conns, fn(c) { c.conn == conn }) {
+        Ok(user) -> {
+          list.map(
+            conns,
+            fn(conn) { send_msg(to: conn.conn, user: user, msg: msg) },
+          )
+          let new_messages = list.take([#(user.name, msg), ..msgs], 100)
           ChatState(connections: conns, messages: new_messages)
         }
         _ -> state
       }
 
-    NewConnection(conn, name) -> {
-      let new_conns = [#(conn, name), ..conns]
-      list.map(new_conns, fn(conn) { send_connect(conn.0, name) })
+    NewConnection(conn, name, colour) -> {
+      let new_user = User(conn: conn, name: name, colour: colour)
+      let new_conns = [new_user, ..conns]
+      list.map(new_conns, fn(conn) { send_connect(conn.conn, name) })
       ChatState(connections: new_conns, messages: msgs)
     }
 
     RemoveConnection(conn) ->
-      case list.find(conns, fn(c) { c.0 == conn }) {
-        Ok(#(_, author)) -> {
-          let new_conns = list.filter(conns, fn(c) { c.0 != conn })
-          list.map(new_conns, fn(conn) { send_disconnect(conn.0, author) })
+      case list.find(conns, fn(c) { c.conn == conn }) {
+        Ok(User(conn, name, _colour)) -> {
+          let new_conns = list.filter(conns, fn(c) { c.conn != conn })
+          list.map(new_conns, fn(conn) { send_disconnect(conn.conn, name) })
           ChatState(connections: new_conns, messages: msgs)
         }
         _ -> state
       }
 
-    GetMessages(conn) -> state
+    GetMessages(_) -> state
   }
 
   Continue(new_state)
