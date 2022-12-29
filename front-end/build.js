@@ -18,11 +18,12 @@ esbuild
     },
     plugins: [
       ElmPlugin({
-        debug: true,
+        debug: !isProd,
         optimize: isProd,
         clearOnWatch: watch,
         verbose: true,
       }), // options are documented below
     ],
   })
-  .catch((e) => (console.error(e), process.exit(1)));
+  .catch((e) => (console.error(e), process.exit(1)))
+  .then(() => process.exit(0));

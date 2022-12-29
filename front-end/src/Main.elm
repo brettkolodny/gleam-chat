@@ -240,11 +240,7 @@ mapDecodeMessage portmsgJson =
         Ok msg ->
             NewMessage msg
 
-        Err errorMessage ->
-            let
-                _ =
-                    Debug.log "Error in mapWorkerUpdated:" errorMessage
-            in
+        Err _ ->
             NoOp
 
 
@@ -259,11 +255,7 @@ mapDecodeConnection incomingConnection =
         Ok conn ->
             NewConnection conn
 
-        Err errorMessage ->
-            let
-                _ =
-                    Debug.log "Error in mapWorkerUpdated:" errorMessage
-            in
+        Err _ ->
             NoOp
 
 
@@ -278,11 +270,7 @@ mapDecodeDisconnection incomingDisconnection =
         Ok conn ->
             NewDisconnection conn
 
-        Err errorMessage ->
-            let
-                _ =
-                    Debug.log "Error in mapWorkerUpdated:" errorMessage
-            in
+        Err _ ->
             NoOp
 
 
