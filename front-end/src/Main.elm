@@ -57,6 +57,9 @@ port sendMessage : PortMsg -> Cmd msg
 port connectUser : UserDetails -> Cmd msg
 
 
+port pastMessagesReceiver : (List D.Value -> msg) -> Sub msg
+
+
 port messageReceiver : (D.Value -> msg) -> Sub msg
 
 
@@ -118,6 +121,7 @@ type Msg
     = DraftChanged String
     | UsernameDraftChanged String
     | Send
+    | PastMessages (List IncomingMsg)
     | NewMessage IncomingMsg
     | NewConnection IncomingConnection
     | NewDisconnection IncomingDisconnection
@@ -193,21 +197,49 @@ update msg model =
                 item =
                     UserMessage { author = message.author, content = message.content, colour = userColour }
             in
-            ( { model | chatItems = model.chatItems ++ [ item ] }, Cmd.none )
+            ( { model | chatItems = model.chatItems ++ [ item ] }, jumpToBottom "chat" )
 
         NewConnection connection ->
             let
                 item =
                     UserConnect connection.name
             in
-            ( { model | chatItems = model.chatItems ++ [ item ] }, Cmd.none )
+            ( { model | chatItems = model.chatItems ++ [ item ] }, jumpToBottom "chat" )
 
         NewDisconnection disconnection ->
             let
                 item =
                     UserDisconnect disconnection.name
             in
-            ( { model | chatItems = model.chatItems ++ [ item ] }, Cmd.none )
+            ( { model | chatItems = model.chatItems ++ [ item ] }, jumpToBottom "chat" )
+
+        PastMessages messages ->
+            let
+                colourStringToColour colourString =
+                    case colourString of
+                        "charcoal" ->
+                            Charcoal
+
+                        "pink" ->
+                            Pink
+
+                        "blue" ->
+                            Blue
+
+                        "aubergine" ->
+                            Aubergine
+
+                        _ ->
+                            Charcoal
+
+                mapIncomingMessage m =
+                    UserMessage
+                        { author = m.author
+                        , content = m.content
+                        , colour = colourStringToColour m.colour
+                        }
+            in
+            ( { model | chatItems = List.map mapIncomingMessage messages }, jumpToBottom "chat" )
 
         NoOp ->
             ( model, Cmd.none )
@@ -223,6 +255,7 @@ subscriptions _ =
         [ messageReceiver mapDecodeMessage
         , connectionReceiver mapDecodeConnection
         , disconnectionReceiver mapDecodeDisconnection
+        , pastMessagesReceiver mapDecodePastMessages
         ]
 
 
@@ -272,6 +305,40 @@ mapDecodeDisconnection incomingDisconnection =
 
         Err _ ->
             NoOp
+
+
+mapDecodePastMessages : List D.Value -> Msg
+mapDecodePastMessages pastMessages =
+    let
+        messagesResults =
+            List.map (\m -> D.decodeValue decodeMessage m) pastMessages
+
+        unwrapAll : List (Result D.Error IncomingMsg) -> List IncomingMsg -> Result () (List IncomingMsg)
+        unwrapAll results unwrapped =
+            case results of
+                hd :: tl ->
+                    case hd of
+                        Ok m ->
+                            unwrapAll tl (m :: unwrapped)
+
+                        _ ->
+                            Err ()
+
+                [] ->
+                    Ok unwrapped
+
+        msg =
+            case unwrapAll messagesResults [] of
+                Ok msgs ->
+                    PastMessages msgs
+
+                _ ->
+                    NoOp
+
+        _ =
+            Debug.log "test"
+    in
+    msg
 
 
 
@@ -360,7 +427,8 @@ chatItemElement chatItem =
                         Aubergine ->
                             "text-[#584355]"
             in
-            div [ class colourClass ] [ text (msg.author ++ ": " ++ msg.content) ]
+            div [ class ("break-words " ++ colourClass) ]
+                [ text (msg.author ++ ": " ++ msg.content) ]
 
         UserDisconnect user ->
             div [] [ em [] [ text (user ++ " disconnected.") ] ]

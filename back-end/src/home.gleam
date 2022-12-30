@@ -5,13 +5,20 @@ import gleam/http/response
 import gleam/bit_builder
 import mist/handler.{Response}
 import gleam/erlang/file
+import gleam/erlang/os
 import html/element.{Html, node, render, script, text}
 
 // HTML -----------------------------------------------------------------------
 
 pub fn render_page(html: Html) -> String {
   let doc_type = "<!DOCTYPE html>"
-  assert Ok(css) = file.read("../front-end/dist/index.css")
+
+  let css_path = case os.get_env("ENV") {
+    Ok("prod") -> "/app/front-end/dist/index.css"
+    _ -> "../front-end/dist/index.css"
+  }
+
+  assert Ok(css) = file.read(css_path)
 
   let html =
     node(
@@ -42,7 +49,12 @@ pub fn render_page(html: Html) -> String {
 // HANDLER --------------------------------------------------------------------
 
 pub fn home() {
-  assert Ok(front_end) = file.read("../front-end/dist/bundle.js")
+  let bundle_path = case os.get_env("ENV") {
+    Ok("prod") -> "/app/front-end/dist/bundle.js"
+    _ -> "../front-end/dist/bundle.js"
+  }
+
+  assert Ok(front_end) = file.read(bundle_path)
 
   let script = script([], [text(front_end)])
 

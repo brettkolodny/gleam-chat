@@ -1,7 +1,7 @@
 // IMPORTS --------------------------------------------------------------------
 
 import mist/websocket.{BinaryMessage, Message, TextMessage, WebsocketHandler}
-import gleam/option.{None, Some}
+import gleam/option.{Some}
 import gleam/dynamic
 import gleam/result
 import gleam/json
@@ -9,7 +9,8 @@ import gleam/bit_string
 import gleam/erlang/process.{Subject}
 import gleam/otp/actor
 import chat_server.{
-  ChatEvent, Connect, NewConnection, NewMessage, PortMsg, RemoveConnection,
+  ChatEvent, Connect, NewConnection, NewMessage, NewSpectator, PortMsg,
+  RemoveConnection,
 }
 
 // UTILITY --------------------------------------------------------------------
@@ -48,6 +49,8 @@ fn message_to_string(message: Message) -> String {
 pub fn websocket(chat_sub: Subject(ChatEvent)) {
   let on_close = fn(conn) { actor.send(chat_sub, RemoveConnection(conn)) }
 
+  let on_init = fn(conn) { actor.send(chat_sub, NewSpectator(conn)) }
+
   let handler = fn(message, conn) {
     let port_msg =
       message
@@ -69,5 +72,9 @@ pub fn websocket(chat_sub: Subject(ChatEvent)) {
     Ok(Nil)
   }
 
-  WebsocketHandler(on_close: Some(on_close), on_init: None, handler: handler)
+  WebsocketHandler(
+    on_close: Some(on_close),
+    on_init: Some(on_init),
+    handler: handler,
+  )
 }
