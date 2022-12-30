@@ -1,0 +1,14 @@
+# gleam-chat
+
+A (messy) example project for an Elm front end and Gleam/Mist backend!
+
+## Running
+
+```sh
+cd front-end
+yarn
+yarn build
+
+cd ../back-end
+gleam run
+```
