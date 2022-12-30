@@ -29,7 +29,7 @@ pub fn render_page(html: Html) -> String {
           "head",
           [],
           [
-            node("title", [], [text("Brett Kolodny")]),
+            node("title", [], [text("Gleam Chat")]),
             text(
               "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">
 <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>

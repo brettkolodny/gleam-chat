@@ -334,9 +334,6 @@ mapDecodePastMessages pastMessages =
 
                 _ ->
                     NoOp
-
-        _ =
-            Debug.log "test"
     in
     msg
 
