@@ -28,8 +28,7 @@ ws.addEventListener("message", (event) => {
   } else if (data.tag === "user-disconnect") {
     app.ports.disconnectionReceiver.send(data);
   } else if (data.tag === "get-messages") {
-    const messages = data.messages.map((m) => JSON.parse(m));
-    app.ports.pastMessagesReceiver.send(messages);
+    app.ports.pastMessagesReceiver.send(data.messages);
   } else {
     console.error(`Unexpected websocket message: ${event.data}`);
   }

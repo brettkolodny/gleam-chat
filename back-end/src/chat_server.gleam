@@ -104,13 +104,12 @@ fn get_messages(
         #("author", json.string(username)),
         #("colour", json.string(colour)),
       ])
-      |> json.to_string()
     })
 
   let payload =
     json.object([
       #("tag", json.string("get-messages")),
-      #("messages", json.array(from: message_jsons, of: json.string)),
+      #("messages", json.preprocessed_array(message_jsons)),
     ])
     |> json.to_string()
 
