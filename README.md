@@ -1,6 +1,6 @@
 # gleam-chat
 
-A (messy) example project for an Elm front end and Gleam/Mist backend!
+A (messy) example project for an Elm frontend and Gleam/Mist backend!
 
 ## Running
 
